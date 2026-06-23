@@ -2,11 +2,14 @@ import Task from '../models/Task.js';
 import Board from '../models/Board.js';
 import Column from '../models/Column.js';
 
-const checkBoardAccess = async (boardId, userId) => {
+const checkBoardAccess = async (boardId, userId, checkClosed = false) => {
   const board = await Board.findById(boardId);
   if (!board) return null;
   if (board.owner_id.toString() !== userId && !board.members?.some(m => m.toString() === userId)) {
     return null;
+  }
+  if (checkClosed && board.status === 'closed') {
+    return 'closed';
   }
   return board;
 };
@@ -58,9 +61,12 @@ export const createTask = async (req, res) => {
       return res.status(400).json({ message: 'Title and column are required' });
     }
 
-    const board = await checkBoardAccess(boardId, req.user.id);
+    const board = await checkBoardAccess(boardId, req.user.id, true);
     if (!board) {
       return res.status(403).json({ message: 'Access denied' });
+    }
+    if (board === 'closed') {
+      return res.status(400).json({ message: 'Cannot modify a closed board' });
     }
 
     const columnTasks = await Task.find({ column_id: column_id });
@@ -95,9 +101,12 @@ export const updateTask = async (req, res) => {
       return res.status(404).json({ message: 'Task not found' });
     }
 
-    const board = await checkBoardAccess(task.board_id, req.user.id);
+    const board = await checkBoardAccess(task.board_id, req.user.id, true);
     if (!board) {
       return res.status(403).json({ message: 'Access denied' });
+    }
+    if (board === 'closed') {
+      return res.status(400).json({ message: 'Cannot modify a closed board' });
     }
 
     const updates = {};
@@ -127,9 +136,12 @@ export const deleteTask = async (req, res) => {
       return res.status(404).json({ message: 'Task not found' });
     }
 
-    const board = await checkBoardAccess(task.board_id, req.user.id);
+    const board = await checkBoardAccess(task.board_id, req.user.id, true);
     if (!board) {
       return res.status(403).json({ message: 'Access denied' });
+    }
+    if (board === 'closed') {
+      return res.status(400).json({ message: 'Cannot modify a closed board' });
     }
 
     await Task.findByIdAndDelete(id);
@@ -150,9 +162,12 @@ export const moveTask = async (req, res) => {
       return res.status(404).json({ message: 'Task not found' });
     }
 
-    const board = await checkBoardAccess(task.board_id, req.user.id);
+    const board = await checkBoardAccess(task.board_id, req.user.id, true);
     if (!board) {
       return res.status(403).json({ message: 'Access denied' });
+    }
+    if (board === 'closed') {
+      return res.status(400).json({ message: 'Cannot modify a closed board' });
     }
 
     const updatedTask = await Task.findByIdAndUpdate(id, { column_id, order_index }, { new: true });
@@ -168,9 +183,12 @@ export const reorderTasks = async (req, res) => {
     const { boardId } = req.params;
     const { tasks } = req.body;
 
-    const board = await checkBoardAccess(boardId, req.user.id);
+    const board = await checkBoardAccess(boardId, req.user.id, true);
     if (!board) {
       return res.status(403).json({ message: 'Access denied' });
+    }
+    if (board === 'closed') {
+      return res.status(400).json({ message: 'Cannot modify a closed board' });
     }
 
     const bulkOps = tasks.map(task => ({

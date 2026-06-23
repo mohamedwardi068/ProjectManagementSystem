@@ -14,6 +14,7 @@ interface BoardContextType {
   createBoard: (title: string, description?: string) => Promise<Board>;
   updateBoard: (id: string, updates: Partial<Board>) => Promise<void>;
   deleteBoard: (id: string) => Promise<void>;
+  closeBoard: (id: string) => Promise<void>;
   createColumn: (boardId: string, title: string) => Promise<Column>;
   updateColumn: (id: string, updates: Partial<Column>) => Promise<void>;
   deleteColumn: (id: string) => Promise<void>;
@@ -99,6 +100,14 @@ export function BoardProvider({ children }: { children: React.ReactNode }) {
       setCurrentBoard(null);
       setColumns([]);
       setTasks([]);
+    }
+  }, [currentBoard]);
+
+  const closeBoard = useCallback(async (id: string) => {
+    const data = await boardService.closeBoard(id);
+    setBoards((prev) => prev.map((b) => (b.id === id ? data : b)));
+    if (currentBoard?.id === id) {
+      setCurrentBoard(data);
     }
   }, [currentBoard]);
 
@@ -257,6 +266,7 @@ export function BoardProvider({ children }: { children: React.ReactNode }) {
         createBoard,
         updateBoard,
         deleteBoard,
+        closeBoard,
         createColumn,
         updateColumn,
         deleteColumn,

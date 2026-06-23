@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { DragDropContext, DropResult, Droppable } from '@hello-pangea/dnd';
-import { ArrowLeft, Plus, Loader2, Star, KanbanSquare, List, Calendar, Users, Settings, Filter, Search } from 'lucide-react';
+import { ArrowLeft, Plus, Loader2, Star, KanbanSquare, List, Calendar, Users, Settings, Filter, Search, X, CheckCircle } from 'lucide-react';
 import { useBoards } from '../context/BoardContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import boardService, { Task, Column } from '../services/boardService';
 import KanbanColumn from '../components/KanbanColumn';
 import TaskModal from '../components/TaskModal';
+import confetti from 'canvas-confetti';
 
 interface AddColumnModalProps {
   isOpen: boolean;
@@ -127,8 +128,16 @@ export function InviteModal({ isOpen, onClose, boardId }: InviteModalProps) {
             <p className="text-center text-gray-400 py-8">No users found</p>
           ) : (
             filteredUsers.map(user => {
-              const isMember = targetBoard?.members?.some((m: any) => (m._id || m.id || m) === user.id) || 
-                               (typeof targetBoard?.owner_id === 'object' ? (targetBoard?.owner_id as any)._id === user.id : targetBoard?.owner_id === user.id);
+              const getUserId = (u: any) => {
+                if (!u) return '';
+                if (typeof u === 'object') {
+                  return u.id || u._id || '';
+                }
+                return u;
+              };
+              const boardOwnerId = getUserId(targetBoard?.owner_id);
+              const isBoardOwner = boardOwnerId === user.id;
+              const isMember = isBoardOwner || targetBoard?.members?.some((m: any) => getUserId(m) === user.id);
               const isPending = invitedUserIds.includes(user.id);
               
               return (
@@ -188,9 +197,47 @@ export function BoardDetails() {
     deleteColumn,
     reorderColumns,
     removeMember,
+    closeBoard,
   } = useBoards();
   const { user } = useAuth();
   const { addToast } = useToast();
+
+  const isClosed = currentBoard?.status === 'closed';
+  const isOwner = currentBoard?.owner_id && (
+    typeof currentBoard.owner_id === 'object' 
+      ? ((currentBoard.owner_id as any)._id || (currentBoard.owner_id as any).id) 
+      : currentBoard.owner_id
+  ) === user?.id;
+
+  const [showCloseConfirmModal, setShowCloseConfirmModal] = useState(false);
+  const [dismissedAutoModal, setDismissedAutoModal] = useState(false);
+
+  const doneColumn = columns.find(c => c.title.toLowerCase() === 'done') || [...columns].sort((a, b) => b.order_index - a.order_index)[0];
+  const hasTasks = tasks.length > 0;
+  const allTasksDone = hasTasks && tasks.every(t => t.column_id === doneColumn?.id);
+
+  useEffect(() => {
+    if (allTasksDone && !isClosed && isOwner && !dismissedAutoModal) {
+      setShowCloseConfirmModal(true);
+    } else if (!allTasksDone) {
+      setDismissedAutoModal(false);
+    }
+  }, [allTasksDone, isClosed, isOwner, dismissedAutoModal]);
+
+  const handleCloseBoard = async () => {
+    if (!currentBoard) return;
+    try {
+      await closeBoard(currentBoard.id);
+      addToast('Project closed and completed!', 'success');
+      confetti({
+        particleCount: 150,
+        spread: 80,
+        origin: { y: 0.6 }
+      });
+    } catch (err: any) {
+      addToast(err.response?.data?.message || 'Failed to close project', 'error');
+    }
+  };
 
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
@@ -207,6 +254,7 @@ export function BoardDetails() {
 
   const handleDragEnd = useCallback(
     async (result: DropResult) => {
+      if (currentBoard?.status === 'closed') return;
       const { source, destination, type } = result;
 
       if (!destination) return;
@@ -414,13 +462,15 @@ export function BoardDetails() {
                   ));
                 })()}
               </div>
-              <button
-                onClick={() => setShowInviteModal(true)}
-                className="w-8 h-8 rounded-full bg-violet-600/30 border-2 border-violet-500/50 flex items-center justify-center text-violet-300 hover:bg-violet-600/50 hover:border-violet-400 hover:text-white transition-all shadow-sm"
-                title="Invite members"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
+              {!isClosed && (
+                <button
+                  onClick={() => setShowInviteModal(true)}
+                  className="w-8 h-8 rounded-full bg-violet-600/30 border-2 border-violet-500/50 flex items-center justify-center text-violet-300 hover:bg-violet-600/50 hover:border-violet-400 hover:text-white transition-all shadow-sm"
+                  title="Invite members"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              )}
               <span className="text-xs text-gray-400">{((currentBoard?.members?.length || 0) + 1)} members</span>
             </div>
             
@@ -428,10 +478,27 @@ export function BoardDetails() {
               <Filter className="w-4 h-4" />
             </button>
             
-            <button onClick={() => setShowAddColumn(true)} className="btn btn-primary whitespace-nowrap text-sm py-2">
-              <Plus className="w-4 h-4 mr-2 inline" />
-              Add Column
-            </button>
+            {isClosed ? (
+              <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap">
+                <CheckCircle className="w-4.5 h-4.5" />
+                Project Completed
+              </span>
+            ) : (
+              <>
+                {isOwner && allTasksDone && (
+                  <button
+                    onClick={() => setShowCloseConfirmModal(true)}
+                    className="px-4 py-2 bg-primary-600/20 border border-primary-500/40 text-primary-300 hover:bg-primary-600/35 hover:text-white rounded-lg transition-all text-sm font-bold whitespace-nowrap shadow-sm"
+                  >
+                    Close Project
+                  </button>
+                )}
+                <button onClick={() => setShowAddColumn(true)} className="btn btn-primary whitespace-nowrap text-sm py-2">
+                  <Plus className="w-4 h-4 mr-2 inline" />
+                  Add Column
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -460,6 +527,7 @@ export function BoardDetails() {
                       onAddTask={handleAddTask}
                       onEditColumn={handleEditColumn}
                       onDeleteColumn={handleDeleteColumn}
+                      isClosed={isClosed}
                     />
                   ))}
                 {provided.placeholder}
@@ -558,6 +626,43 @@ export function BoardDetails() {
         onClose={() => setShowInviteModal(false)}
         boardId={id!}
       />
+
+      {showCloseConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => {
+            setShowCloseConfirmModal(false);
+            setDismissedAutoModal(true);
+          }}></div>
+          <div className="relative bg-surface border border-border rounded-xl p-6 w-full max-w-sm mx-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <h2 className="text-xl font-bold text-white mb-2">Close Project?</h2>
+            <p className="text-gray-300 text-sm mb-6">
+              All tasks are completed! Do you want to close this project? It will become read-only and move to history.
+            </p>
+            <div className="flex gap-3">
+              <button 
+                type="button" 
+                onClick={() => {
+                  setShowCloseConfirmModal(false);
+                  setDismissedAutoModal(true);
+                }} 
+                className="btn btn-ghost flex-1 py-2 text-sm font-semibold"
+              >
+                Cancel
+              </button>
+              <button 
+                type="button" 
+                onClick={async () => {
+                  setShowCloseConfirmModal(false);
+                  await handleCloseBoard();
+                }} 
+                className="btn btn-primary flex-1 py-2 text-sm font-semibold"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

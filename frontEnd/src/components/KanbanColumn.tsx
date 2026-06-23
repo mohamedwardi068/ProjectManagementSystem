@@ -12,6 +12,7 @@ interface KanbanColumnProps {
   onAddTask: (columnId: string, title: string) => void;
   onEditColumn: (columnId: string, title: string) => void;
   onDeleteColumn: (columnId: string) => void;
+  isClosed?: boolean;
 }
 
 const columnColors: Record<string, string> = {
@@ -29,6 +30,7 @@ export function KanbanColumn({
   onAddTask,
   onEditColumn,
   onDeleteColumn,
+  isClosed = false,
 }: KanbanColumnProps) {
   const [showAddCard, setShowAddCard] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -55,7 +57,7 @@ export function KanbanColumn({
   const dotColor = columnColors[column.title] || 'bg-gray-400';
 
   return (
-    <Draggable draggableId={column.id} index={index}>
+    <Draggable draggableId={column.id} index={index} isDragDisabled={isClosed}>
       {(provided) => (
         <div
           ref={provided.innerRef}
@@ -93,12 +95,14 @@ export function KanbanColumn({
                   </span>
                 </h3>
                 <div className="relative">
-                  <button
-                    onClick={() => setShowMenu(!showMenu)}
-                    className="p-1 rounded hover:bg-surfaceHover transition-colors"
-                  >
-                    <MoreHorizontal className="w-5 h-5 text-gray-500" />
-                  </button>
+                  {!isClosed && (
+                    <button
+                      onClick={() => setShowMenu(!showMenu)}
+                      className="p-1 rounded hover:bg-surfaceHover transition-colors"
+                    >
+                      <MoreHorizontal className="w-5 h-5 text-gray-500" />
+                    </button>
+                  )}
                   {showMenu && (
                     <>
                       <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)}></div>
@@ -141,7 +145,7 @@ export function KanbanColumn({
                 }`}
               >
                 {tasks.map((task, taskIndex) => (
-                  <Draggable key={task.id} draggableId={task.id} index={taskIndex}>
+                  <Draggable key={task.id} draggableId={task.id} index={taskIndex} isDragDisabled={isClosed}>
                     {(provided, snapshot) => (
                       <div
                         ref={provided.innerRef}
@@ -160,7 +164,7 @@ export function KanbanColumn({
           </Droppable>
 
           <div className="p-3">
-            {showAddCard ? (
+            {isClosed ? null : showAddCard ? (
               <div className="space-y-2">
                 <input
                   type="text"

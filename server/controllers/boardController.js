@@ -162,8 +162,13 @@ export const inviteMember = async (req, res) => {
       return res.status(403).json({ message: 'Only owner can invite members' });
     }
 
+    if (board.owner_id.toString() === userId) {
+      return res.status(400).json({ message: 'Cannot invite the board owner' });
+    }
+
     const members = board.members || [];
-    if (members.includes(userId)) {
+    const isMember = members.some(m => m.toString() === userId);
+    if (isMember) {
       return res.status(400).json({ message: 'User is already a member' });
     }
 
@@ -245,4 +250,23 @@ export const joinBoard = async (req, res) => {
   }
 };
 
-export default { getBoards, searchBoards, getBoard, createBoard, updateBoard, deleteBoard, inviteMember, removeMember, joinBoard };
+export const closeBoard = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const board = await Board.findById(id);
+    if (!board) {
+      return res.status(404).json({ message: 'Board not found' });
+    }
+    if (board.owner_id.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Only the owner can close this board' });
+    }
+    board.status = 'closed';
+    await board.save();
+    res.json(board);
+  } catch (error) {
+    console.error('Close board error:', error);
+    res.status(500).json({ message: 'Server error closing board' });
+  }
+};
+
+export default { getBoards, searchBoards, getBoard, createBoard, updateBoard, deleteBoard, inviteMember, removeMember, joinBoard, closeBoard };

@@ -17,7 +17,12 @@ const boardSchema = new mongoose.Schema({
   members: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
-  }]
+  }],
+  status: {
+    type: String,
+    enum: ['active', 'closed'],
+    default: 'active'
+  }
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
   toJSON: { 

@@ -15,6 +15,7 @@ export interface Board {
   owner_id: string | UserSnippet;
   members: (string | UserSnippet)[];
   columns?: Column[];
+  status?: 'active' | 'closed';
   created_at: string;
 }
 
@@ -84,6 +85,11 @@ export const boardService = {
 
   async deleteBoard(id: string): Promise<void> {
     await api.delete(`/boards/${id}`);
+  },
+
+  async closeBoard(id: string): Promise<Board> {
+    const response = await api.put<Board>(`/boards/${id}/close`);
+    return response.data;
   },
 
   async getColumns(boardId: string): Promise<Column[]> {

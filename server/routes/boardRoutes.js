@@ -8,7 +8,8 @@ import {
   deleteBoard,
   inviteMember,
   removeMember,
-  joinBoard
+  joinBoard,
+  closeBoard
 } from '../controllers/boardController.js';
 import authMiddleware from '../middleware/authMiddleware.js';
 
@@ -19,6 +20,7 @@ router.get('/search', authMiddleware, searchBoards);
 router.get('/:id', authMiddleware, getBoard);
 router.post('/', authMiddleware, createBoard);
 router.put('/:id', authMiddleware, updateBoard);
+router.put('/:id/close', authMiddleware, closeBoard);
 router.delete('/:id', authMiddleware, deleteBoard);
 router.post('/:id/invites', authMiddleware, inviteMember);
 router.delete('/:id/members/:userId', authMiddleware, removeMember);

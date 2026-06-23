@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Folder, MoreHorizontal, Search, ChevronDown, User, Users, Star, Calendar } from 'lucide-react';
+import { Plus, Folder, MoreHorizontal, Search, ChevronDown, User, Users, Star, Calendar, CheckCircle } from 'lucide-react';
 import { useBoards } from '../context/BoardContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -160,7 +160,7 @@ function BoardCard({
   isStarred,
   onToggleStar
 }: {
-  board: { id: string; title: string; description?: string; created_at: string; members?: string[] };
+  board: { id: string; title: string; description?: string; created_at: string; members?: string[]; status?: string };
   onDelete: () => void;
   isStarred: boolean;
   onToggleStar: (e: React.MouseEvent) => void;
@@ -213,6 +213,12 @@ function BoardCard({
           <Folder className="w-6 h-6 text-blue-400" />
         </div>
         <div className="flex items-center gap-2">
+          {board.status === 'closed' && (
+            <div className="flex items-center gap-1 px-2.5 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full text-xs font-bold shadow-sm mr-2">
+              <CheckCircle className="w-3.5 h-3.5" />
+              Completed
+            </div>
+          )}
           <button className={`p-1.5 rounded-lg hover:bg-white/10 transition-colors ${isStarred ? 'text-yellow-400' : 'text-gray-400 hover:text-white'}`} onClick={onToggleStar}>
             <Star className={`w-5 h-5 ${isStarred ? 'fill-yellow-400 text-yellow-400' : ''}`} />
           </button>
@@ -254,6 +260,7 @@ export function Boards() {
   const [searchQuery, setSearchQuery] = useState('');
   
   const [filter, setFilter] = useState<'all' | 'personal' | 'shared' | 'starred'>('all');
+  const [statusFilter, setStatusFilter] = useState<'active' | 'closed'>('active');
   const [starredBoards, setStarredBoards] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem('starredBoards') || '[]');
@@ -302,6 +309,10 @@ export function Boards() {
   };
 
   const filteredBoards = boards.filter((board) => {
+    const isBoardClosed = board.status === 'closed';
+    if (statusFilter === 'active' && isBoardClosed) return false;
+    if (statusFilter === 'closed' && !isBoardClosed) return false;
+
     const matchesSearch = board.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           board.description?.toLowerCase().includes(searchQuery.toLowerCase());
     if (!matchesSearch) return false;
@@ -334,9 +345,31 @@ export function Boards() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold text-white mb-1">All Boards</h1>
-        <p className="text-gray-400 text-sm">Manage and organize all your project boards in one place.</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/50 pb-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white mb-1">
+            {statusFilter === 'active' ? 'Active Projects' : 'Completed Projects (History)'}
+          </h1>
+          <p className="text-gray-400 text-sm">
+            {statusFilter === 'active' 
+              ? 'Manage and organize all your active project boards.' 
+              : 'View history and read-only archive of completed boards.'}
+          </p>
+        </div>
+        <div className="flex bg-[#0f1420] p-1 border border-border/60 rounded-xl shadow-inner self-start md:self-auto">
+          <button
+            onClick={() => setStatusFilter('active')}
+            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-200 ${statusFilter === 'active' ? 'bg-primary-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+          >
+            Active
+          </button>
+          <button
+            onClick={() => setStatusFilter('closed')}
+            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-200 ${statusFilter === 'closed' ? 'bg-primary-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+          >
+            Completed
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -399,27 +432,31 @@ export function Boards() {
           />
         ))}
         
-        {/* Create New Board Card */}
-        <button
-          onClick={() => setShowModal(true)}
-          className="border-2 border-dashed border-gray-700 rounded-2xl h-64 flex flex-col items-center justify-center text-center hover:border-gray-500 hover:bg-surfaceHover/50 transition-all group"
-        >
-          <div className="w-12 h-12 bg-surface border border-border rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-            <Plus className="w-6 h-6 text-gray-400 group-hover:text-white transition-colors" />
-          </div>
-          <h3 className="text-lg font-bold text-white mb-1">Create New Board</h3>
-          <p className="text-gray-400 text-sm">Start organizing your ideas</p>
-        </button>
-        <button
-          onClick={() => setShowJoinModal(true)}
-          className="border-2 border-dashed border-gray-700/50 rounded-2xl h-64 flex flex-col items-center justify-center text-center hover:border-gray-500 hover:bg-surfaceHover/30 transition-all group"
-        >
-          <div className="w-12 h-12 bg-surface/50 border border-border/50 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-            <Users className="w-6 h-6 text-gray-500 group-hover:text-gray-300 transition-colors" />
-          </div>
-          <h3 className="text-lg font-bold text-gray-300 mb-1">Join a Board</h3>
-          <p className="text-gray-500 text-sm">Search by board name to collaborate</p>
-        </button>
+        {statusFilter === 'active' && (
+          <>
+            {/* Create New Board Card */}
+            <button
+              onClick={() => setShowModal(true)}
+              className="border-2 border-dashed border-gray-700 rounded-2xl h-64 flex flex-col items-center justify-center text-center hover:border-gray-500 hover:bg-surfaceHover/50 transition-all group"
+            >
+              <div className="w-12 h-12 bg-surface border border-border rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                <Plus className="w-6 h-6 text-gray-400 group-hover:text-white transition-colors" />
+              </div>
+              <h3 className="text-lg font-bold text-white mb-1">Create New Board</h3>
+              <p className="text-gray-400 text-sm">Start organizing your ideas</p>
+            </button>
+            <button
+              onClick={() => setShowJoinModal(true)}
+              className="border-2 border-dashed border-gray-700/50 rounded-2xl h-64 flex flex-col items-center justify-center text-center hover:border-gray-500 hover:bg-surfaceHover/30 transition-all group"
+            >
+              <div className="w-12 h-12 bg-surface/50 border border-border/50 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                <Users className="w-6 h-6 text-gray-500 group-hover:text-gray-300 transition-colors" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-300 mb-1">Join a Board</h3>
+              <p className="text-gray-500 text-sm">Search by board name to collaborate</p>
+            </button>
+          </>
+        )}
       </div>
 
       <CreateBoardModal

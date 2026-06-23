@@ -1,11 +1,14 @@
 import Column from '../models/Column.js';
 import Board from '../models/Board.js';
 
-const checkBoardAccess = async (boardId, userId) => {
+const checkBoardAccess = async (boardId, userId, checkClosed = false) => {
   const board = await Board.findById(boardId);
   if (!board) return null;
   if (board.owner_id.toString() !== userId && !board.members?.some(m => m.toString() === userId)) {
     return null;
+  }
+  if (checkClosed && board.status === 'closed') {
+    return 'closed';
   }
   return board;
 };
@@ -36,9 +39,12 @@ export const createColumn = async (req, res) => {
       return res.status(400).json({ message: 'Column title is required' });
     }
 
-    const board = await checkBoardAccess(boardId, req.user.id);
+    const board = await checkBoardAccess(boardId, req.user.id, true);
     if (!board) {
       return res.status(403).json({ message: 'Access denied' });
+    }
+    if (board === 'closed') {
+      return res.status(400).json({ message: 'Cannot modify a closed board' });
     }
 
     const existingColumns = await Column.find({ board_id: boardId });
@@ -67,9 +73,12 @@ export const updateColumn = async (req, res) => {
       return res.status(404).json({ message: 'Column not found' });
     }
 
-    const board = await checkBoardAccess(column.board_id, req.user.id);
+    const board = await checkBoardAccess(column.board_id, req.user.id, true);
     if (!board) {
       return res.status(403).json({ message: 'Access denied' });
+    }
+    if (board === 'closed') {
+      return res.status(400).json({ message: 'Cannot modify a closed board' });
     }
 
     const updates = {};
@@ -97,6 +106,9 @@ export const deleteColumn = async (req, res) => {
     if (!board || board.owner_id.toString() !== req.user.id) {
       return res.status(403).json({ message: 'Only owner can delete columns' });
     }
+    if (board.status === 'closed') {
+      return res.status(400).json({ message: 'Cannot modify a closed board' });
+    }
 
     await Column.findByIdAndDelete(id);
     res.json({ message: 'Column deleted successfully' });
@@ -111,9 +123,12 @@ export const reorderColumns = async (req, res) => {
     const { boardId } = req.params;
     const { columns } = req.body;
 
-    const board = await checkBoardAccess(boardId, req.user.id);
+    const board = await checkBoardAccess(boardId, req.user.id, true);
     if (!board) {
       return res.status(403).json({ message: 'Access denied' });
+    }
+    if (board === 'closed') {
+      return res.status(400).json({ message: 'Cannot modify a closed board' });
     }
 
     const bulkOps = columns.map(col => ({
